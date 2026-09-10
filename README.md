@@ -1,191 +1,222 @@
-# True WiFi Auto Login/Logout — v4.0.5
+# TrueWiFi Auto Login (New Portal) — v1.0.0
 
-> รายงานการสำรวจและวิเคราะห์โค้ด (Code Review Report)
-> ไฟล์เป้าหมาย: `True_WiFi_Auto_Login_v4.0.5.user.js`
+> Greasemonkey / Tampermonkey userscript สำหรับ **TrueMove H (TrueWiFi) Portal ใหม่**
+> กรอก username/password + กดปุ่ม "เข้าสู่ระบบ" อัตโนมัติ พร้อม **ตัวนับเวลาถอยหลัง (HH:mm:ss)** แบบ overlay ครึ่งจอบน และ **Logout อัตโนมัติ** เมื่อครบเวลา
 
 ---
 
 ## สารบัญ
 
-- [1. ภาพรวมไฟล์](#1-ภาพรวมไฟล์)
-- [2. การทำงาน (Flow)](#2-การทำงาน-flow)
-- [3. จุดที่ทำงานถูกต้อง](#3-จุดที่ทำงานถูกต้อง-ยืนยันด้วยการคำนวณจริง)
-- [4. ปัญหาและบั๊ก](#4-ปัญหาและบั๊ก-เรียงตามความรุนแรง)
-- [5. ความปลอดภัย](#5-ความปลอดภัย)
-- [6. สรุปคำแนะนำ](#6-สรุปคำแนะนำ-ตามลำดับที่ควรทำ)
+- [1. คุณสมบัติ (Features)](#1-คุณสมบัติ-features)
+- [2. ตัวอย่างหน้าจอ (Screenshot)](#2-ตัวอย่างหน้าจอ-screenshot)
+- [3. ผังการทำงาน (Flow Diagram)](#3-ผังการทำงาน-flow-diagram)
+- [4. ไฟล์ที่เกี่ยวข้อง](#4-ไฟล์ที่เกี่ยวข้อง)
+- [5. การติดตั้ง Greasemonkey (Firefox)](#5-การติดตั้ง-greasemonkey-firefox)
+- [6. การตั้งค่า (Configuration)](#6-การตั้งค่า-configuration)
+- [7. วิธีการทำงาน (How It Works)](#7-วิธีการทำงาน-how-it-works)
+- [8. การจัดเก็บข้อมูล (Storage)](#8-การจัดเก็บข้อมูล-storage)
+- [9. การแก้ไขปัญหา (Troubleshooting)](#9-การแก้ไขปัญหา-troubleshooting)
+- [10. ประวัติเวอร์ชัน (Changelog)](#10-ประวัติเวอร์ชัน-changelog)
+- [11. ลิขสิทธิ์](#11-ลิขสิทธิ์)
 
 ---
 
-## 1. ภาพรวมไฟล์
+## 1. คุณสมบัติ (Features)
 
-Workspace นี้มีโค้ดเพียงไฟล์เดียว คือ userscript `True_WiFi_Auto_Login_v4.0.5.user.js` ไม่มีไฟล์อื่นแอบซ่อน
-
-```text
-True_WiFi_Auto_Login_v4.0.5/
-├── README.md                              (รายงานการวิเคราะห์นี้)
-└── True_WiFi_Auto_Login_v4.0.5.user.js    (87 บรรทัด, 3,804 bytes)
-```
-
-| รายการ | ค่า |
-|---|---|
-| ไฟล์ | `True_WiFi_Auto_Login_v4.0.5.user.js` |
-| ขนาด / บรรทัด | 3,804 bytes / **87 บรรทัด** |
-| Encoding | UTF-8 **ไม่มี BOM** (ขึ้นต้น `2F 2F 20 3D` = `// =`) |
-| Metadata ที่มี | `@name`, `@version`, `@author`, `@namespace`, `@description`, `@include` |
-| Metadata ที่ขาด | `@match`, `@grant`, `@run-at`, `@noframes`, `@license`, `@updateURL` |
-| โครงสร้างโค้ด | ไม่มีฟังก์ชันเลย — เป็น top-level script 4 บล็อก (Credential → Variables → Show Time → Timer) |
+| # | คุณสมบัติ | รายละเอียด |
+|---|---|---|
+| 1 | **Auto-fill ฟอร์ม login** | กรอก `username` / `password` อัตโนมัติบนหน้า `index.php` (ใช้ native setter + dispatch events กัน framework ไม่เห็นค่า) |
+| 2 | **กดปุ่ม "เข้าสู่ระบบ" อัตโนมัติ** | หน่วงเวลา `clickDelay` (ค่าเริ่มต้น 1 วินาที) แล้ว click ปุ่มจริง (ปุ่มเป็น `type="button"` + `onclick="Validation()"` จึงต้อง click ไม่ใช่ `form.submit()`) |
+| 3 | **Countdown overlay ครึ่งจอบน** | บนหน้า `login-success.php` แสดง "เหลือเวลาอีก" + ตัวเลข **HH:mm:ss** ขนาดใหญ่ (120px) ตรงกลางครึ่งจอบน |
+| 4 | **ตั้งระยะเวลาใช้งานได้** | `sessionMinutes` ค่าเริ่มต้น **75 นาที** (1 ชม 15 นาที) — ตรงกับระยะเวลาเชื่อมต่อสูงสุดของแพ็กเกจ |
+| 5 | **Logout อัตโนมัติ** | เมื่อครบเวลา → กดปุ่ม **Logout** อัตโนมัติ (มี fallback ไป `logout.php` ถ้าหาปุ่มไม่เจอ) |
+| 6 | **หน้า logout จัดการให้** | แสดง overlay "Redirecting to Login Page ...." ครึ่งจอบน → หน่วง 1 วินาที → redirect กลับหน้า login อัตโนมัติ |
+| 7 | **ทนต่อการ reload** | เก็บ deadline ใน `sessionStorage` → กด F5 กลางเซสชัน ตัวนับไม่รีเซ็ต |
+| 8 | **ไม่บังการใช้งาน** | overlay เป็น `pointerEvents: none` → ครึ่งล่างของจอยังคลิกใช้งานได้ปกติ |
+| 9 | **รองรับหลายตัวจัดการสคริปต์** | Tampermonkey / Violentmonkey (GM storage) + Greasemonkey 4+ (fallback `localStorage`) |
+| 10 | **จำกัดเฉพาะหน้าเป้าหมาย** | ทำงานเฉพาะ 3 หน้า: `index.php`, `login-success.php`, `logout.php` (เช็คจาก `pathname` ไม่สนใจ query string) |
 
 ---
 
-## 2. การทำงาน (Flow)
+## 2. ตัวอย่างหน้าจอ (Screenshot)
+
+**หน้า `login-success.php` — แสดง countdown overlay ครึ่งจอบน (เหลือเวลาอีก 01:01:03) พร้อมข้อมูลแพ็กเกจและปุ่ม Logout:**
+
+![TrueWiFi Auto Login - หน้า login success พร้อม countdown overlay](001.jpg)
+
+> ภาพด้านบนคือผลลัพธ์การทำงานของสคริปต์: overlay ครึ่งจอบนแสดง "เหลือเวลาอีก" + ตัวเลข HH:mm:ss ขนาดใหญ่ ส่วนครึ่งล่างยังแสดงข้อมูลแพ็กเกจ (หมายเลขผู้ใช้งาน, แพ็กเกจ, วันหมดอายุ, การใช้งานคงเหลือ) และปุ่ม **Auto Login** / **Logout** ตามปกติ
+
+---
+
+## 3. ผังการทำงาน (Flow Diagram)
 
 ```mermaid
 flowchart TD
-    A["โหลดหน้า portal.trueinternet.co.th"] --> B{"href.substring(49,..)<br/>= login-success?"}
-    B -->|ใช่| C["setInterval 1s<br/>นับถอยหลัง + เขียน DOM/title"]
-    B -->|ไม่| D{"= logout-success?"}
-    D -->|ใช่| E["redirect ไป facebook.com/?ver=random"]
-    D -->|ไม่| F{"= logout-fail?"}
-    F -->|ใช่| G["location = wifi-login.php"]
-    F -->|ไม่| H{"= login?"}
-    H -->|ใช่| I["เติม username/password<br/>แล้ว forms[0].submit()"]
-    H -->|ไม่| J["ไม่ทำอะไร"]
-    C -.-> K["setTimeout(tosec)<br/>ถ้ายังอยู่หน้า success → logout"]
+    A["index.php?lang=th<br/>(หน้า login)"] --> B["กรอก username / password<br/>+ dispatch input/change events"]
+    B --> C["หน่วง 1 วินาที<br/>(clickDelay)"]
+    C --> D["กดปุ่ม 'เข้าสู่ระบบ'<br/>(click ปุ่มจริง)"]
+    D --> E["login-success.php?lang=th<br/>(login สำเร็จ)"]
+    E --> F["แสดง overlay ครึ่งจอบน<br/>'เหลือเวลาอีก' + HH:mm:ss<br/>(75 นาที)"]
+    F --> G{"ครบเวลา?"}
+    G -->|"ยังไม่ครบ"| F
+    G -->|"ครบ"| H["กดปุ่ม Logout<br/>(fallback: logout.php)"]
+    H --> I["logout.php?lang=th"]
+    I --> J["แสดง overlay ครึ่งจอบน<br/>'Redirecting to Login Page ....'"]
+    J --> K["หน่วง 1 วินาที"]
+    K -->|"redirect"| A
+```
+
+**สรุปวงจร:** `login → success (countdown) → logout → กลับมา login` วนซ้ำอัตโนมัติ
+
+---
+
+## 4. ไฟล์ที่เกี่ยวข้อง
+
+```text
+True_WiFi_Auto_Login_v4.0.5/
+├── README.md                          ← เอกสารนี้
+├── truewifi-autologin.user.js         ← สคริปต์หลัก (v1.0.0) — ใช้กับ Portal ใหม่
+└── True_WiFi_Auto_Login_v4.0.5.user.js ← สคริปต์เก่า (Portal เดิม wifiauthen/web/) — ไม่เกี่ยวข้อง
 ```
 
 ---
 
-## 3. จุดที่ทำงานถูกต้อง (ยืนยันด้วยการคำนวณจริง)
+## 5. การติดตั้ง Greasemonkey (Firefox)
 
-- Prefix `https://portal.trueinternet.co.th/wifiauthen/web/` ยาว **49 ตัวอักษรพอดี** → offset ทั้ง 8 ตัว (`49,71` / `49,68` / `49,72` / `49,69` / `49,66` / `49,63` / `49,60`) ตรงกับชื่อไฟล์ปลายทางทั้งหมด **ไม่มี off-by-one**
+### ขั้นตอนที่ 1 — ติดตั้งส่วนขยาย
 
-| ไฟล์ปลายทาง | ความยาว | ช่วง substring ที่ใช้ |
-|---|---|---|
-| `wifi-login-success.php` | 22 | `substring(49, 71)` |
-| `7-login-success.php` | 19 | `substring(49, 68)` |
-| `wifi-logout-success.php` | 23 | `substring(49, 72)` |
-| `7-logout-success.php` | 20 | `substring(49, 69)` |
-| `wifi-logout-fail.php` | 20 | `substring(49, 69)` |
-| `7-logout-fail.php` | 17 | `substring(49, 66)` |
-| `wifi-login.php` | 14 | `substring(49, 63)` |
-| `7-login.php` | 11 | `substring(49, 60)` |
+1. เปิด Firefox → ไปที่ [addons.mozilla.org/firefox/addon/greasemonkey](https://addons.mozilla.org/firefox/addon/greasemonkey/)
+2. คลิก **Add to Firefox** → **Add** → รอติดตั้งเสร็จ
+3. *(ทางเลือก)* ใช้ [Tampermonkey](https://addons.mozilla.org/firefox/addon/tampermonkey/) แทนก็ได้ — สคริปต์รองรับทั้งคู่
 
-- ไม่มี false-positive ระหว่างคู่ `wifi-*` กับ `7-*` เพราะเลือก end index ตามความยาวจริงของแต่ละชื่อ
-- ลำดับ `if/else if` ถูกต้อง — เช็คชื่อเต็มก่อนชื่อ 7-11
+### ขั้นตอนที่ 2 — ติดตั้งสคริปต์
 
----
+**วิธีที่ 1: เปิดไฟล์โดยตรง (แนะนำ)**
+1. เปิดไฟล์ `truewifi-autologin.user.js` ใน Firefox (ลากไฟล์มาที่หน้าต่าง Firefox หรือ File → Open File)
+2. Greasemonkey จะแสดงหน้า **Install script** → คลิก **Install**
+3. ตรวจสอบที่ **Greasemonkey Dashboard** ว่าสคริปต์ถูกเปิดใช้งาน (Enabled)
 
-## 4. ปัญหาและบั๊ก (เรียงตามความรุนแรง)
+**วิธีที่ 2: คัดลอกวาง**
+1. คลิกไอคอน Greasemonkey บนแถบเครื่องมือ → **New user script**
+2. ลบโค้ดตัวอย่างออก แล้ววางโค้ดทั้งหมดจาก `truewifi-autologin.user.js`
+3. กด **Ctrl+S** เพื่อบันทึก
 
-### 🔴 1. Magic number 49 — เปราะและพังเงียบ (พิสูจน์แล้ว)
+### ขั้นตอนที่ 3 — ตั้งค่า username / password
 
-ถ้าหน้าเป็น `http://` prefix จะเหลือ 48 ตัว → `substring(49, 63)` เรียกบนสตริงยาว 62 จะ **throw `IndexSizeError`/คืนค่าว่าง** → ทุกสาขาไม่ match → สคริปต์ไม่ทำงานเลยโดยไม่มี error ให้เห็น
-
-และถ้า portal ย้าย path (เช่นเพิ่ม `/web/v2/`) ก็จบทั้งไฟล์
-
-> **ควรใช้** `new URL(location.href).pathname.split('/').pop()` หรือ `href.endsWith(url_login)`
-
-### 🔴 2. ไม่มี null guard เลย
-
-`getElementById('username')`, `getElementById('wifi_bottom_bg')`, `forms[0]` — ถ้า element ยังไม่มา/ถูกเปลี่ยน id จะได้ `TypeError` แล้วสคริปต์ตายทั้งตัว
-
-และ `forms[0]` คือ "ฟอร์มแรกของหน้า" ซึ่งไม่การันตีว่าเป็นฟอร์ม login
-
-### 🔴 3. ตัวนับเวลาไม่ทน reload และเพี้ยน
-
-- `tosec` / `cooldown` เป็นค่าคงที่ที่คำนวณใหม่ทุกครั้งที่โหลดสคริปต์ → กด F5 กลางเซสชัน = นับใหม่จาก `minute` เต็ม (logout ช้ากว่าความจริง)
-- `cooldown--` ไม่มี clamp → ถ้าไม่ navigate จะไหลเป็น `Time left -0:-1:-1`
-- `setInterval` ลบ 1 ทุก ~1000ms = **drift สะสม**, ไม่มี `clearInterval`
-- `parseInt` ตัดทศนิยม, ไม่ pad เลข 0 → แสดง `2:58:0` แทน `02:58:00`
-
-### 🟠 4. Timer ทำงานเฉพาะเมื่อยังอยู่หน้า success
-
-ถ้าผู้ใช้เปลี่ยนแท็บ/ไปหน้าอื่นตอนหมดเวลา → **ไม่ logout เลย** เซสชันค้าง และไม่มี guard กันการ logout ซ้ำ
-
-### 🟠 5. Redirect เป็น relative
-
-`document.location = url_login` resolve กับ directory ปัจจุบัน (ตอนนี้ได้ผลเพราะ fail page อยู่ `/web/` เหมือนกัน) แต่ถ้าย้ายโฟลเดอร์จะพาไปผิดที่
-
-### 🟠 6. หน้านี้ไม่ถูกจัดการ
-
-`url_logout` = `.../wifiauthen/logout_result.php` (prefix 45 ตัว, ยาวรวม 62) อยู่นอกตระกูล `/web/` และไม่มีสาขาตรวจ → สคริปต์เงียบบนหน้านั้น
-
-### 🟡 7. เสี่ยงวนลูป
-
-fail → login → submit → fail → … ไม่มี retry limit/backoff และ `forms[0].submit()` ยังข้าม `onsubmit` handler ของหน้าเว็บ
-
----
-
-## 5. ความปลอดภัย
-
-| ระดับ | ประเด็น |
-|---|---|
-| 🔴 | **รหัสผ่าน plain text ในไฟล์** — ใครได้ไฟล์ได้รหัสทันที (ควรใช้ `GM_setValue` หรือ prompt ครั้งแรก) |
-| 🔴 | โค้ดเป็น **top-level global** ไม่มี IIFE → `window.password` มองเห็นได้จากสคริปต์อื่นบนหน้าเว็บเดียวกัน |
-| 🟠 | `@include http*://` ยอมรับ `http://` → ไม่บังคับ TLS ทั้งที่ส่ง credential ผ่าน captive portal (เสี่ยง MITM) ควรล็อกเป็น `https://` |
-| 🟠 | `url_to_redirect` ชี้ `http://www.facebook.com/?ver=` — ไม่เข้ารหัส, hardcode, ปรับไม่ได้ |
-| 🟡 | ไม่มี `@noframes` → ถ้า portal ฝัง iframe อาจ submit/วนซ้ำ |
-
----
-
-## 6. สรุปคำแนะนำ (ตามลำดับที่ควรทำ)
-
-1. **เลิกใช้ `substring(49,..)`** → ใช้ `pathname` ตัดชื่อไฟล์ แล้วเทียบด้วย `endsWith` หรือ map object แทน if-else chain
-2. **ห่อทุกอย่างใน IIFE** `(function(){ 'use strict'; ... })();` และย้าย credential ออกจากตัวไฟล์
-3. **เก็บ deadline จริงด้วย `Date.now()`** + `sessionStorage`/`GM_setValue` → countdown ทน reload และไม่ drift
-4. **ใส่ null guard / `try-catch`** + ตั้ง `@run-at document-idle` และอ่าน element ให้ครบก่อน submit
-5. **ล็อก URL เป็น `https://` ทั้งหมด**, เพิ่ม `@match`, `@grant`, `@noframes`
-6. **จัด format เวลาเป็น `HH:MM:SS`** และ clamp ที่ 0
-
----
-
-## ภาคผนวก: ตัวอย่างโค้ดที่แนะนำ
-
-### ตรวจ URL แบบปลอดภัย (แทน magic number 49)
+1. เปิด **Greasemonkey Dashboard** → คลิกชื่อสคริปต์เพื่อแก้ไข
+2. แก้ไขค่าใน `CONFIG`:
 
 ```javascript
-const page = new URL(location.href).pathname.split('/').pop();
-
-const ROUTES = {
-  'wifi-login.php':          'login',
-  '7-login.php':             'login',
-  'wifi-login-success.php':  'success',
-  '7-login-success.php':     'success',
-  'wifi-logout-success.php': 'logout-success',
-  '7-logout-success.php':    'logout-success',
-  'wifi-logout-fail.php':    'logout-fail',
-  '7-logout-fail.php':       'logout-fail',
+const CONFIG = {
+    username: 'YourUsername', // ← เปลี่ยนเป็นทรูไอดี / ชื่อผู้ใช้งาน (ไม่ต้องใส่ @)
+    password: 'YourPassword', // ← เปลี่ยนเป็นรหัสผ่านของคุณ
+    autoSubmit: true,         // true = กดปุ่ม "เข้าสู่ระบบ" อัตโนมัติ
+    clickDelay: 1000,         // หน่วงเวลาก่อนกดปุ่ม (มิลลิวินาที)
+    sessionMinutes: 75,       // จำนวนนาทีก่อน logout อัตโนมัติ (75 = 1 ชม 15 นาที)
 };
 ```
 
-### Countdown ที่ไม่ drift และทน reload
+3. กด **Ctrl+S** เพื่อบันทึก
 
-```javascript
-const deadline = Number(sessionStorage.getItem('truewifi_deadline'))
-  || Date.now() + minute * 60 * 1000;
-sessionStorage.setItem('truewifi_deadline', String(deadline));
+### ขั้นตอนที่ 4 — ทดสอบใช้งาน
 
-setInterval(() => {
-  const left = Math.max(0, deadline - Date.now());
-  const total = Math.floor(left / 1000);
-  const h = String(Math.floor(total / 3600)).padStart(2, '0');
-  const m = String(Math.floor(total / 60) % 60).padStart(2, '0');
-  const s = String(total % 60).padStart(2, '0');
-  // ...อัปเดต DOM / title
-}, 1000);
-```
+1. เชื่อมต่อ WiFi **TrueMove H** / **TrueWiFi**
+2. เปิดเบราว์เซอร์ → ระบบจะ redirect ไปหน้า login
+3. สคริปต์จะกรอกข้อมูล → หน่วง 1 วิ → กด "เข้าสู่ระบบ" ให้อัตโนมัติ
+4. หน้า login-success จะแสดงตัวนับเวลาถอยหลังครึ่งจอบน
+5. เมื่อครบเวลา → logout อัตโนมัติ → redirect กลับหน้า login
 
 ---
 
-## สรุปสถานะโค้ด
+## 6. การตั้งค่า (Configuration)
 
-| หัวข้อ | สถานะ |
-|---|---|
-| ตรรกะการตรวจ URL | ⚠️ ถูกต้องแต่เปราะ (พึ่ง offset 49) |
-| การจัดการ error | ❌ ไม่มีเลย |
-| ความทนทานต่อ reload | ❌ ไม่มี |
-| ความแม่นยำของตัวนับเวลา | ⚠️ มี drift + ค่าไม่ถูก clamp |
-| ความปลอดภัยของ credential | ❌ plain text + global scope |
-| Metadata ของ userscript | ⚠️ ขาด `@grant` / `@run-at` / `@noframes` |
+### `CONFIG` — ตั้งค่าหลัก
 
-> **สรุป:** สคริปต์ทำงานได้ในสภาพแวดล้อมปัจจุบัน (HTTPS + path เดิม) แต่เปราะต่อการเปลี่ยนแปลงใด ๆ ของ portal, ไม่มี error handling, นับเวลาเพี้ยนเมื่อ reload และเก็บรหัสผ่านแบบ plain text
+| ตัวแปร | ค่าเริ่มต้น | คำอธิบาย |
+|---|---|---|
+| `username` | `'YourUsername'` | ทรูไอดี / ชื่อผู้ใช้งาน (ไม่ต้องใส่ @) |
+| `password` | `'YourPassword'` | รหัสผ่าน |
+| `autoSubmit` | `true` | `true` = กดปุ่มเข้าสู่ระบบอัตโนมัติ, `false` = กรอกให้อย่างเดียว |
+| `clickDelay` | `1000` | หน่วงเวลาก่อนกดปุ่มเข้าสู่ระบบ (มิลลิวินาที) |
+| `sessionMinutes` | `75` | ระยะเวลาใช้งานก่อน logout อัตโนมัติ (นาที) |
+
+### `PAGE` — หน้าที่สคริปต์จัดการ (ไม่ควรแก้)
+
+| ตัวแปร | pathname | หน้าที่ |
+|---|---|---|
+| `PAGE.login` | `/wifi/portal/truewifi/web/index.php` | หน้า login — กรอก + กดเข้าสู่ระบบ |
+| `PAGE.success` | `/wifi/portal/truewifi/web/login-success.php` | หน้า login สำเร็จ — countdown + logout |
+| `PAGE.logout` | `/wifi/portal/truewifi/web/logout.php` | หน้า logout — redirect กลับ login |
+
+---
+
+## 7. วิธีการทำงาน (How It Works)
+
+### หน้า `index.php` (Login)
+
+1. รอให้ฟอร์มโหลดเสร็จ (`waitForForm` — polling ทุก 300ms สูงสุด 15 วินาที)
+2. อ่านค่า username/password: **GM storage → localStorage → CONFIG** (ตามลำดับ)
+3. ตรวจสอบว่ายังไม่ได้ตั้งค่า (ค่าเป็น `YourUsername`/`YourPassword`) → แสดง toast เตือนแล้วหยุด
+4. กรอกค่าด้วย **native setter** + dispatch `input`/`change` events (กัน framework ไม่เห็นค่า)
+5. หน่วง `clickDelay` (1 วิ) → click ปุ่ม:
+   - ลำดับ selector: `button.btn-primary` → `button[onclick*="Validation"]` → `form#form button[type="submit"]`
+   - fallback: เรียก `Validation()` ตรง ๆ → สุดท้าย `form.submit()`
+
+### หน้า `login-success.php` (Countdown)
+
+1. อ่าน deadline จาก `sessionStorage` (key: `tw_session_deadline`)
+   - ไม่มีค่า / หมดอายุแล้ว → ตั้งใหม่ = `Date.now() + sessionMinutes*60*1000`
+   - มีค่า → นับต่อจากเวลาที่เหลือจริง (ทน reload)
+2. สร้าง overlay ครึ่งจอบน (`top:0`, `height:50vh`, พื้นหลัง `rgba(0,0,0,.55)`, `pointerEvents:none`)
+   - ข้อความ "เหลือเวลาอีก" (ขาว 28px หนา) + ตัวเลข **HH:mm:ss** (ส้ม 120px monospace)
+3. `setInterval` ทุก 1 วินาที อัปเดตตัวเลข (format ด้วย `padStart(2,'0')`)
+4. เมื่อครบเวลา: ล้าง interval → ลบ deadline + overlay → กดปุ่ม Logout:
+   - selector: `button[onclick*="logout.php"]` → `button.btn-secondary`
+   - fallback: `location.href = 'logout.php?lang=th'`
+
+### หน้า `logout.php` (Redirect)
+
+1. สร้าง overlay ครึ่งจอบน (template เดียวกับหน้า success) ข้อความ **"Redirecting to Login Page ...."**
+2. หน่วง 1 วินาที → `location.href = '.../index.php?lang=th'`
+
+---
+
+## 8. การจัดเก็บข้อมูล (Storage)
+
+| ระบบ | key | ใช้เก็บ | หมายเหตุ |
+|---|---|---|---|
+| GM storage (`GM_setValue`) | `username`, `password` | credential | Tampermonkey / Violentmonkey |
+| `localStorage` | `tw_autologin_username`, `tw_autologin_password` | credential (fallback) | Greasemonkey 4+ (ไม่มี GM API แบบ sync) |
+| `sessionStorage` | `tw_session_deadline` | deadline ของ countdown | ทน reload — ลบอัตโนมัติเมื่อ logout |
+
+> **ลำดับการอ่าน:** GM storage → localStorage → CONFIG (ค่าในสคริปต์เป็นค่าเริ่มต้นสุดท้าย)
+
+---
+
+## 9. การแก้ไขปัญหา (Troubleshooting)
+
+| อาการ | สาเหตุ | วิธีแก้ |
+|---|---|---|
+| สคริปต์ไม่ทำงานเลย | ติดตั้งไม่สำเร็จ / ยังเป็นเวอร์ชันเก่า | เปิด Greasemonkey Dashboard → ตรวจว่า Enabled + version 1.0.0 |
+| ไม่เห็น countdown บนหน้า success | ใช้ VS Code browser / เบราว์เซอร์ที่ไม่มี Greasemonkey | ต้องทดสอบใน **Firefox จริง** ที่ติดตั้ง Greasemonkey |
+| แจ้ง "ยังไม่ได้ตั้งค่า username/password" | ยังไม่ได้แก้ `CONFIG` | แก้ `CONFIG.username` / `CONFIG.password` แล้ว Ctrl+S |
+| ตัวนับรีเซ็ตเมื่อ reload | — | ควรนับต่อได้ (sessionStorage) — ถ้ารีเซ็ต แสดงว่าเปิดแท็บใหม่ (session ใหม่) |
+| กดเข้าสู่ระบบไม่สำเร็จ | รหัสผิด / ฟอร์มเปลี่ยน | ตรวจ credential + เปิด Console (F12) ดู error |
+| วนลูป login → success → logout | ตั้ง `sessionMinutes` สั้นเกินไป | เพิ่ม `sessionMinutes` ให้ตรงแพ็กเกจ |
+| ตรวจสอบว่าสคริปต์รันหรือไม่ | — | F12 → Console → พิมพ์ `document.getElementById('tw-countdown-overlay')` — ถ้าได้ element แปลว่ารันแล้ว |
+
+---
+
+## 10. ประวัติเวอร์ชัน (Changelog)
+
+| เวอร์ชัน | วันที่ | การเปลี่ยนแปลง |
+|---|---|---|
+| **1.0.0** | 2026-09-10 | เวอร์ชันแรก: auto-fill + กดเข้าสู่ระบบ, countdown 75 นาที (HH:mm:ss) ครึ่งจอบน, logout อัตโนมัติ, redirect กลับหน้า login, รองรับ Tampermonkey/Violentmonkey/Greasemonkey 4+ |
+
+---
+
+## 11. ลิขสิทธิ์
+
+- **ผู้พัฒนา:** Wachira Duangdee ([github.com/wachira90](https://github.com/wachira90))
+- สคริปต์นี้จัดทำเพื่อใช้งานส่วนตัวกับเครือข่าย TrueMove H (TrueWiFi) — ใช้ตามความรับผิดชอบของคุณเอง
+- อย่าลืมว่า credential ถูกเก็บในเครื่องของคุณเท่านั้น (GM storage / localStorage) ไม่มีการส่งข้อมูลไปที่อื่นนอกจาก portal ของ True
