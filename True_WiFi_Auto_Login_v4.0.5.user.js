@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name           Truewifi Auto Login/Logout
-// @version        4.0.5
-// @author         Modified by Gusto_R (mrgill created in http://imrgill.com/)
-// @namespace      http://www.facebook.com/pages/True-WiFi-Auto-Login/213510638776036
+// @version        1.0.0
+// @author         Modified by https://github.com/wachira90
+// @namespace      
 // @description    True Wifi automatic login/re-login script when time is exceed.
 // @include        http*://portal.trueinternet.co.th/*
 // ==/UserScript==
