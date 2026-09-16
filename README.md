@@ -73,10 +73,9 @@ flowchart TD
 ## 4. ไฟล์ที่เกี่ยวข้อง
 
 ```text
-True_WiFi_Auto_Login_v4.0.5/
+truewifi-auto-login/
 ├── README.md                          ← เอกสารนี้
-├── truewifi-autologin.user.js         ← สคริปต์หลัก (v1.0.0) — ใช้กับ Portal ใหม่
-└── True_WiFi_Auto_Login_v4.0.5.user.js ← สคริปต์เก่า (Portal เดิม wifiauthen/web/) — ไม่เกี่ยวข้อง
+└── truewifi-autologin.user.js         ← สคริปต์หลัก (v1.0.0) — ใช้กับ Portal ใหม่
 ```
 
 ---
